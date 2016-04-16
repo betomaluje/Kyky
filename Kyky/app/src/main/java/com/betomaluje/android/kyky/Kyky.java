@@ -4,7 +4,6 @@ import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -43,7 +42,11 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
                 .addApiIfAvailable(Wearable.API)
                 .build();
 
-        this.path = path;
+        if (path == null || path.isEmpty()) {
+            throw new RuntimeException("You need to set a path to listen to. Try overriding getPath() on your service");
+        } else {
+            this.path = path;
+        }
     }
 
     public void connect() {
@@ -59,6 +62,10 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         }
     }
 
+    public void setPath(String path) {
+        this.path = path;
+    }
+
     public String getPath() {
         return path;
     }
@@ -72,7 +79,7 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
     }
 
     @Override
-    public void onConnected(@Nullable Bundle bundle) {
+    public void onConnected(Bundle bundle) {
         Log.e(TAG, "onConnected");
         Wearable.MessageApi.addListener(googleApiClient, this);
         Wearable.DataApi.addListener(googleApiClient, this);
@@ -174,9 +181,10 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
 
     public static class DataMapBuilder {
 
-        private DataMap map = new DataMap();
+        private static DataMap map;
 
         public static DataMapBuilder create() {
+            map = new DataMap();
             return new DataMapBuilder();
         }
 
