@@ -27,6 +27,12 @@ import com.google.android.gms.wearable.Wearable;
 public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener,
         MessageApi.MessageListener {
 
+    public interface KykyStatus {
+        void onConnected();
+
+        void onDisconnected();
+    }
+
     private final String TAG = Kyky.class.getSimpleName();
 
     private String path;
@@ -34,6 +40,8 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
 
     private DataApi.DataListener externalDataListener;
     private MessageApi.MessageListener externalMessageListener;
+
+    private KykyStatus onKykyStatus;
 
     public Kyky(Context context, String path) {
         googleApiClient = new GoogleApiClient.Builder(context)
@@ -47,6 +55,10 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         } else {
             this.path = path;
         }
+    }
+
+    public void setOnKykyStatus(KykyStatus onKykyStatus) {
+        this.onKykyStatus = onKykyStatus;
     }
 
     public void connect() {
@@ -83,6 +95,9 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         Log.e(TAG, "onConnected");
         Wearable.MessageApi.addListener(googleApiClient, this);
         Wearable.DataApi.addListener(googleApiClient, this);
+
+        if (onKykyStatus != null)
+            onKykyStatus.onConnected();
     }
 
     public void syncData(DataMap dataMap) {
@@ -100,11 +115,17 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
     @Override
     public void onConnectionSuspended(int i) {
         Log.e(TAG, "onConnectionSuspended");
+
+        if (onKykyStatus != null)
+            onKykyStatus.onDisconnected();
     }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
         Log.e(TAG, "onConnectionFailed (" + connectionResult.getErrorCode() + ") : " + connectionResult.getErrorMessage());
+
+        if (onKykyStatus != null)
+            onKykyStatus.onDisconnected();
     }
 
     @Override
@@ -145,9 +166,9 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
                     DataApi.DataItemResult result = pendingResult.await();
 
                     if (result.getStatus().isSuccess()) {
-                        Log.e(TAG, "Message sent to: " + node.getDisplayName());
+                        Log.e(TAG, "Data sent to: " + node.getDisplayName());
                     } else {
-                        Log.e(TAG, "ERROR: failed to send Message");
+                        Log.e(TAG, "ERROR: failed to send Data");
                     }
                 }
 
