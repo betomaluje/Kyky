@@ -18,7 +18,7 @@ allprojects {
 
 Afterwards, in the `gradle.build` file on the module just add this line:
 ```Gradle
-compile 'com.betomaluje.android:kyky:1.0.0'
+compile 'com.betomaluje.android:kyky:1.0.1'
 ```
 
 Now the interesting part. On your `Activity`, `Fragment` or `Service` you have to create a Kyky variable (Example for a Fragment)
