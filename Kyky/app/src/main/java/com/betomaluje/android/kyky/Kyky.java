@@ -1,10 +1,13 @@
 package com.betomaluje.android.kyky;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
+import android.view.View;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -13,6 +16,7 @@ import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
@@ -20,6 +24,10 @@ import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by betomaluje on 4/5/16.
@@ -33,10 +41,19 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         void onDisconnected();
     }
 
+    public interface KykyBitmapListener {
+        void onBitmapReady(Bitmap bitmap);
+
+        void onBitmapError(String error);
+    }
+
     private final String TAG = Kyky.class.getSimpleName();
 
-    private String path;
+    private ArrayList<String> paths = new ArrayList<>();
+
     private GoogleApiClient googleApiClient;
+
+    private static final long BITMAP_DECODE_TIMEOUT_MS = 2000;
 
     private DataApi.DataListener externalDataListener;
     private MessageApi.MessageListener externalMessageListener;
@@ -53,7 +70,10 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         if (path == null || path.isEmpty()) {
             throw new RuntimeException("You need to set a path to listen to. Try overriding getPath() on your service");
         } else {
-            this.path = path;
+
+            if (!paths.contains(path)) {
+                paths.add(path);
+            }
         }
     }
 
@@ -74,12 +94,28 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         }
     }
 
-    public void setPath(String path) {
-        this.path = path;
+    public Kyky addPath(String path) {
+        if (path == null || path.isEmpty()) {
+            throw new RuntimeException("You need to set a path to listen to. Try overriding getPath() on your service");
+        } else {
+            if (!paths.contains(path)) {
+                paths.add(path);
+            }
+        }
+
+        return this;
+    }
+
+    public ArrayList<String> getPaths() {
+        return paths;
     }
 
     public String getPath() {
-        return path;
+        return getPath(0);
+    }
+
+    public String getPath(int index) {
+        return paths != null && !paths.isEmpty() ? paths.get(index) : "";
     }
 
     public void setExternalDataListener(DataApi.DataListener externalDataListener) {
@@ -90,6 +126,73 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         this.externalMessageListener = externalMessageListener;
     }
 
+    public void loadBitmapFromAsset(Asset asset, KykyBitmapListener kykyBitmapListener) {
+        loadBitmapFromAsset(asset, kykyBitmapListener, BITMAP_DECODE_TIMEOUT_MS);
+    }
+
+    public void loadBitmapFromAsset(final Asset asset, @NonNull final KykyBitmapListener kykyBitmapListener, final long bitmapDecodeTimeout) {
+        if (asset != null) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    long time = bitmapDecodeTimeout;
+
+                    if (bitmapDecodeTimeout < 0) {
+                        time = BITMAP_DECODE_TIMEOUT_MS;
+                    }
+
+                    ConnectionResult result = googleApiClient.blockingConnect(time, TimeUnit.MILLISECONDS);
+
+                    if (!result.isSuccess()) {
+                        kykyBitmapListener.onBitmapError("BlockingConnect failed");
+                    } else {
+                        // convert asset into a file descriptor and block until it's ready
+                        InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                                googleApiClient, asset).await().getInputStream();
+
+                        if (assetInputStream == null) {
+                            Log.e(TAG, "Requested an unknown Asset.");
+                            kykyBitmapListener.onBitmapError("Requested an unknown Asset");
+                        } else {
+                            // decode the stream into a bitmap
+                            BitmapFactory.Options options = new BitmapFactory.Options();
+
+                            //biggest screen size until today 13-10-2017 is 320x240
+                            options.inSampleSize = calculateInSampleSize(options, 320, 320);
+
+                            kykyBitmapListener.onBitmapReady(BitmapFactory.decodeStream(assetInputStream, null, options));
+                        }
+                    }
+                }
+            }).start();
+
+        } else {
+            kykyBitmapListener.onBitmapError("Asset must not be null");
+        }
+    }
+
+    public int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+
+        return inSampleSize;
+    }
+
     @Override
     public void onConnected(Bundle bundle) {
         Log.e(TAG, "onConnected");
@@ -98,18 +201,6 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
 
         if (onKykyStatus != null)
             onKykyStatus.onConnected();
-    }
-
-    public void syncData(DataMap dataMap) {
-        syncData(dataMap, false);
-    }
-
-    public void syncData(DataMap dataMap, boolean isUrgent) {
-        new KykyDataItemAsyncTask().execute(dataMap, isUrgent);
-    }
-
-    public void syncMessage(DataMap dataMap) {
-        new KykyMessageAsyncTask().execute(dataMap);
     }
 
     @Override
@@ -140,6 +231,44 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
             externalMessageListener.onMessageReceived(messageEvent);
     }
 
+    public void syncAllData(DataMap dataMap) {
+        for (String path : paths) {
+            syncData(path, dataMap, false);
+        }
+    }
+
+    public void syncAllData(DataMap dataMap, boolean isUrgent) {
+        for (String path : paths) {
+            syncData(path, dataMap, isUrgent);
+        }
+    }
+
+    public void syncData(DataMap dataMap) {
+        syncData(getPath(), dataMap);
+    }
+
+    public void syncData(String path, DataMap dataMap) {
+        syncData(path, dataMap, false);
+    }
+
+    public void syncData(String path, DataMap dataMap, boolean isUrgent) {
+        new KykyDataItemAsyncTask().execute(path, dataMap, isUrgent);
+    }
+
+    public void syncAllMessages(DataMap dataMap) {
+        for (String path : paths) {
+            syncMessage(path, dataMap);
+        }
+    }
+
+    public void syncMessage(DataMap dataMap) {
+        syncMessage(getPath(), dataMap);
+    }
+
+    public void syncMessage(String path, DataMap dataMap) {
+        new KykyMessageAsyncTask().execute(path, dataMap);
+    }
+
     public class KykyDataItemAsyncTask extends AsyncTask<Object, Integer, Boolean> {
 
         @Override
@@ -150,12 +279,12 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
             } else {
                 NodeApi.GetConnectedNodesResult nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient).await();
 
-                PutDataMapRequest putDataMapReq = PutDataMapRequest.create(path);
+                PutDataMapRequest putDataMapReq = PutDataMapRequest.create(String.valueOf(params[0]));
                 DataMap dataMap = putDataMapReq.getDataMap();
-                dataMap.putAll((DataMap) params[0]);
+                dataMap.putAll((DataMap) params[1]);
 
                 PutDataRequest putDataReq = putDataMapReq.asPutDataRequest();
-                if ((Boolean) params[1])
+                if ((Boolean) params[2])
                     putDataReq.setUrgent();
 
                 //finally we send the data to the different nodes
@@ -177,17 +306,20 @@ public class Kyky implements GoogleApiClient.ConnectionCallbacks, GoogleApiClien
         }
     }
 
-    public class KykyMessageAsyncTask extends AsyncTask<DataMap, Integer, Boolean> {
+    public class KykyMessageAsyncTask extends AsyncTask<Object, Integer, Boolean> {
 
         @Override
-        protected Boolean doInBackground(DataMap... params) {
+        protected Boolean doInBackground(Object... params) {
 
             if (!googleApiClient.isConnected()) {
                 return false;
             } else {
                 NodeApi.GetConnectedNodesResult nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient).await();
                 for (Node node : nodes.getNodes()) {
-                    MessageApi.SendMessageResult result = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(), path, params[0].toByteArray()).await();
+                    MessageApi.SendMessageResult result = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(),
+                            String.valueOf(params[0]),
+                            ((DataMap) params[1]).toByteArray()).await();
+
                     if (result.getStatus().isSuccess()) {
                         Log.e(TAG, "Message sent to: " + node.getDisplayName());
                     } else {
