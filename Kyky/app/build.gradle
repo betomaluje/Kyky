@@ -2,12 +2,12 @@ apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "26.0.1"
+    buildToolsVersion "26.0.2"
 
     defaultConfig {
         minSdkVersion 14
         targetSdkVersion 23
-        versionCode 1
+        versionCode 2
         versionName "1.0.2"
     }
     buildTypes {
@@ -27,17 +27,17 @@ dependencies {
 
 ext {
     bintrayRepo = 'maven'
-    bintrayName = 'kyky'
+    bintrayName = 'Kyky'
 
     libraryName = 'Kyky'
 
-    PUBLISH_GROUP_ID = 'com.betomaluje.android'
-    PUBLISH_ARTIFACT_ID = 'kyky'
-    PUBLISH_VERSION = '1.0.2'
+    publishedGroupId = 'com.betomaluje.android'
+    artifact = 'kyky'
+    libraryVersion = '1.0.2'
 
     libraryDescription = 'A library to simplify the communication between Android Wear devices an Android devices on Android projects'
 
-    siteUrl = ''
+    siteUrl = 'http://github.com/betomaluje/Kyky'
     gitUrl = 'http://github.com/betomaluje/Kyky'
 
     developerId = 'betomaluje'
@@ -49,4 +49,7 @@ ext {
     allLicenses = ["Apache-2.0"]
 }
 
-apply from: 'https://raw.githubusercontent.com/blundell/release-android-library/master/android-release-aar.gradle'
+//Add these lines to publish library to bintray. This is the readymade scripts made by github user nuuneoi to make uploading to bintray easy.
+//Place it at the end of the file
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/installv1.gradle'
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/bintrayv1.gradle'
