@@ -8,20 +8,59 @@ allprojects {
     repositories {
         jcenter()
         mavenCentral()
-
-        maven {
-            url 'https://dl.bintray.com/betomaluje/maven'
-        }
     }
 }
 ```
 
 Afterwards, in the `gradle.build` file on the module just add this line:
 ```Gradle
-compile 'com.betomaluje.android:kyky:1.0.1'
+compile 'com.betomaluje.android:kyky:1.0.2'
 ```
 
-Now the interesting part. On your `Activity`, `Fragment` or `Service` you have to create a Kyky variable (Example for a Fragment)
+Now the interesting part. 
+
+You can use the out-of-the-box classes to speed up your development such as:
+
+* `KykyActivity` (extends from `Activity`)
+* `KykyFragment` (extends from `Fragment`)
+* `KykyService` (extends from `CanvasWatchFaceService`)
+* `KykyWearableActivity` (extends from `WearableActivity`)
+
+and use `Kyky` easily as:
+
+```Java
+public class MainActivity extends KykyWearableActivity {
+
+    ...
+
+    @Override
+    public String getPath() {
+        return "/MY_PATH"; //SUPER IMPORTANT!! SET THE PATH TO LISTEN TO
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        kyky.setExternalDataListener(dataListener);
+        kyky.setExternalMessageListener(messageListener);
+
+        kyky.setOnKykyStatus(new Kyky.KykyStatus() {
+            @Override
+            public void onConnected() {
+                sendConnectedStatus(true);
+            }
+
+            @Override
+            public void onDisconnected() {
+                sendConnectedStatus(false);
+            }
+        });
+    }
+```
+
+Alternatively, on your `AppCompatActivity`, `Fragment` or `Service` you have to create a Kyky variable (Example for a Fragment)
 
 ```Java
 ...
@@ -54,15 +93,15 @@ To send messages or data, you can use the `DataMapBuilder` inside Kyky. You can:
 
 ```Java
 addInt(String key, int value)
-addString(String key, int value)
-addLong(String key, int value)
-addBoolean(String key, int value)
-addByteArray(String key, int value)
-addByte(String key, int value)
-addAsset(String key, int value)
+addString(String key, String value)
+addLong(String key, Long value)
+addBoolean(String key, Boolean value)
+addByteArray(String key, byte[] value)
+addByte(String key, byte value)
+addAsset(String key, Asset value)
 ```
 
-##Sending Messages
+## Sending Messages
 ```Java
  DataMap config = Kyky.DataMapBuilder.create()
                 .addString("color", "#FFFFFF")
@@ -73,7 +112,7 @@ addAsset(String key, int value)
 
 Very simple!
 
-##Sending DataItems
+## Sending DataItems
 ```Java
  DataMap config = Kyky.DataMapBuilder.create()
                 .addString("color", "#FFFFFF")
@@ -86,13 +125,11 @@ Very simple!
 
 Alternatively you can use `kyky.syncData(config, true);` to tell Kyky that's an urgent message.
 
-##Listen to messages or DataItems
+## Listen to messages or DataItems
 Every project has different aproaches so you just need to set the respective listener for your purpose after you create your Kyky instance:
 
-###DataApi
+### DataApi
 ```Java
-kyky = new Kyky(context, "/MY_PATH");
-
 //now we set our listener
 kyky.setExternalDataListener(dataListener);
 
@@ -121,11 +158,9 @@ private DataApi.DataListener dataListener = new DataApi.DataListener() {
     }
   }
 ```
-###MessageApi
+### MessageApi
 
 ```Java
-kyky = new Kyky(context, "/MY_PATH");
-
 //now we set our listener
 kyky.setExternalMessageListener(messageListener);
 
@@ -140,18 +175,44 @@ private MessageApi.MessageListener messageListener = new MessageApi.MessageListe
     Log.e(TAG, "You have a message from " + messageEvent.getPath());
 
     // convert a byte array to DataMap
-    byte[] rawData = messageEvent.getData();
-    DataMap dataMap = DataMap.fromByteArray(rawData);
+    DataMap dataMap = DataMap.fromByteArray(messageEvent.getData());
 
     //we make sure that kyky's path is the same
     if (messageEvent.getPath().equals(kyky.getPath())) {
       String myKey = "color";
     
       if (dataMap.containsKey(myKey)) {
-        mainColor = Color.parseColor(dataMap.getString(keyMainColor));
-        mIndicatorPaint.setColor(mainColor);
+        //do something with the color String
+        String color = dataMap.getString(myKey);
       }
     }
   }
 };
+```
+
+Kyky comes with a in-built way to convert an `Asset` to a `Bitmap` called `loadBitmapFromAsset(Asset asset, Kyky.KykyBitmapListener kykyBitmapListener)` just like this:
+
+```Java
+    DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
+    Asset asset = dataMapItem.getDataMap().getAsset("photo");
+
+    kyky.loadBitmapFromAsset(asset, new Kyky.KykyBitmapListener() {
+        @Override
+        public void onBitmapReady(final Bitmap bitmap) {
+            if (bitmap != null) {
+                imageBackground.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        imageBackground.setImageBitmap(bitmap);
+                        imageBackground.setVisibility(View.VISIBLE);
+                        progressBar.setVisibility(View.GONE);
+                    }
+                });
+             }
+         }
+         @Override
+         public void onBitmapError(String s) {
+            Log.e("MainActivity", "bitmap error : " + s);
+        }
+    });
 ```
