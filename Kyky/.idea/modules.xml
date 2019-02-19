@@ -3,7 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Kyky.iml" filepath="$PROJECT_DIR$/Kyky.iml" />
-      <module fileurl="file://$PROJECT_DIR$/kyky/app.iml" filepath="$PROJECT_DIR$/kyky/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/kyky/kyky.iml" filepath="$PROJECT_DIR$/kyky/kyky.iml" />
     </modules>
   </component>
 </project>
